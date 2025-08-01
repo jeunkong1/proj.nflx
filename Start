@@ -1,11 +1,16 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from datetime import datetime, timedelta
+
 def load_data(file_path):
     """
     Load data from a CSV file into a pandas DataFrame.
-
+    
     Parameters:
     file_path (str): The path to the CSV file.
-
+    
     Returns:
     pd.DataFrame: DataFrame containing the loaded data.
     """
@@ -15,25 +20,147 @@ def load_data(file_path):
     except Exception as e:
         print(f"An error occurred while loading the data: {e}")
         return None
-    
-# Bring NFLX data into a DataFrame
-nflx_data = load_data('NFLX_HistoricalData.csv')
-# Display the first few rows of the DataFrame
-if nflx_data is not None:
-    print(nflx_data.head())
-else:
-    print("Failed to load data.")
-# Ensure the DataFrame is not empty
+
+# Load NFLX Data
+nflx_data = load_data(r'C:\Users\user\OneDrive\Desktop\Jeun Kong(KR)\코딩 연습\NFLX Project\NFLX Historical Data\NFLX_HistoricalData.csv')
+
+# Check if data loaded successfully
 if nflx_data is not None and not nflx_data.empty:
-    print("Data loaded successfully.")
-else:
-    print("No data to display.")
-# Display the shape of the DataFrame
-if nflx_data is not None:
+    print("Data loaded successfully!")
     print(f"Data shape: {nflx_data.shape}")
-# Display the columns of the DataFrame
-if nflx_data is not None:
-    print(f"Data columns: {nflx_data.columns.tolist()}")
-# Display the data types of the DataFrame
-if nflx_data is not None:
-    print(f"Data types:\n{nflx_data.dtypes}")
+    print(f"Columns: {nflx_data.columns.tolist()}")
+    
+    # Check if required columns exist
+    if 'Date' in nflx_data.columns and 'Close/Last' in nflx_data.columns:
+        # Convert Date column to datetime
+        nflx_data['Date'] = pd.to_datetime(nflx_data['Date'])
+        
+        # Sort by date
+        nflx_data = nflx_data.sort_values('Date')
+        
+        # Clean the Close/Last column (remove $ symbol if present)
+        if nflx_data['Close/Last'].dtype == 'object':
+            nflx_data['Close/Last'] = nflx_data['Close/Last'].str.replace('$', '').str.replace(',', '').astype(float)
+        
+        # Calculate Moving Averages
+        nflx_data['MA_10'] = nflx_data['Close/Last'].rolling(window=10).mean()  # 10-day moving average
+        nflx_data['MA_20'] = nflx_data['Close/Last'].rolling(window=20).mean()  # 20-day moving average
+        nflx_data['MA_50'] = nflx_data['Close/Last'].rolling(window=50).mean()  # 50-day moving average
+        
+        # Simple Future Price Prediction using Linear Regression
+        # Prepare data for prediction (use last 30 days)
+        recent_data = nflx_data.tail(30).copy()
+        recent_data['Days'] = range(len(recent_data))
+        
+        # Create and train the model
+        X = recent_data[['Days']].values
+        y = recent_data['Close/Last'].values
+        
+        model = LinearRegression()
+        model.fit(X, y)
+        
+        # Predict next 10 days
+        future_days = 10
+        last_day = len(recent_data)
+        future_X = np.array([[i] for i in range(last_day, last_day + future_days)])
+        future_prices = model.predict(future_X)
+        
+        # Create future dates
+        last_date = nflx_data['Date'].iloc[-1]
+        future_dates = [last_date + timedelta(days=i+1) for i in range(future_days)]
+        
+        # Create the enhanced plot
+        plt.figure(figsize=(15, 10))
+        
+        # Plot actual closing price
+        plt.plot(nflx_data['Date'], nflx_data['Close/Last'], 
+                label='Close Price', color='#1f77b4', linewidth=2.5, alpha=0.8)
+        
+        # Plot moving averages
+        plt.plot(nflx_data['Date'], nflx_data['MA_10'], 
+                label='10-Day MA', color='orange', linewidth=2, alpha=0.7)
+        plt.plot(nflx_data['Date'], nflx_data['MA_20'], 
+                label='20-Day MA', color='green', linewidth=2, alpha=0.7)
+        plt.plot(nflx_data['Date'], nflx_data['MA_50'], 
+                label='50-Day MA', color='red', linewidth=2, alpha=0.7)
+        
+        # Plot future predictions
+        plt.plot(future_dates, future_prices, 
+                label='Future Estimate (10 days)', color='purple', 
+                linewidth=3, linestyle='--', marker='o', markersize=6)
+        
+        # Fill area under the curve for emphasis
+        plt.fill_between(nflx_data['Date'], nflx_data['Close/Last'], 
+                        color='lightblue', alpha=0.2)
+        
+        # Customize the plot
+        plt.xlabel('Date', fontsize=14, fontweight='bold')
+        plt.ylabel('Close Price (USD)', fontsize=14, fontweight='bold')
+        plt.title('Netflix (NFLX) Stock Analysis with Moving Averages & Future Estimates', 
+                 fontsize=16, fontweight='bold', pad=20)
+        plt.legend(fontsize=12, loc='upper left')
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.xticks(rotation=45)
+        
+        # Format y-axis to show dollar signs
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:.0f}'))
+        
+        # Adjust layout and show
+        plt.tight_layout()
+        plt.show()
+        
+        # Print statistics and analysis
+        print(f"\n=== NETFLIX STOCK ANALYSIS ===")
+        print(f"Current Price: ${nflx_data['Close/Last'].iloc[-1]:.2f}")
+        print(f"Highest Price: ${nflx_data['Close/Last'].max():.2f}")
+        print(f"Lowest Price: ${nflx_data['Close/Last'].min():.2f}")
+        print(f"Average Price: ${nflx_data['Close/Last'].mean():.2f}")
+        print(f"Date Range: {nflx_data['Date'].min().date()} to {nflx_data['Date'].max().date()}")
+        
+        print(f"\n=== MOVING AVERAGES (Latest) ===")
+        print(f"10-Day MA: ${nflx_data['MA_10'].iloc[-1]:.2f}")
+        print(f"20-Day MA: ${nflx_data['MA_20'].iloc[-1]:.2f}")
+        print(f"50-Day MA: ${nflx_data['MA_50'].iloc[-1]:.2f}")
+        
+        print(f"\n=== FUTURE PRICE ESTIMATES (Next 10 Days) ===")
+        for i, (date, price) in enumerate(zip(future_dates, future_prices)):
+            print(f"Day {i+1} ({date.strftime('%Y-%m-%d')}): ${price:.2f}")
+        
+        print(f"\n=== TREND ANALYSIS ===")
+        current_price = nflx_data['Close/Last'].iloc[-1]
+        ma_10 = nflx_data['MA_10'].iloc[-1]
+        ma_20 = nflx_data['MA_20'].iloc[-1]
+        ma_50 = nflx_data['MA_50'].iloc[-1]
+        
+        if current_price > ma_10 > ma_20 > ma_50:
+            trend = "Strong Uptrend"
+        elif current_price > ma_10 and current_price > ma_20:
+            trend = "Uptrend"
+        elif current_price < ma_10 < ma_20 < ma_50:
+            trend = "Strong Downtrend"
+        elif current_price < ma_10 and current_price < ma_20:
+            trend = "Downtrend"
+        else:
+            trend = "Sideways/Mixed"
+            
+        print(f"Current Trend: {trend}")
+        
+        # Prediction confidence
+        avg_future_price = np.mean(future_prices)
+        print(f"\nAverage Estimated Price (10 days): ${avg_future_price:.2f}")
+        change_pct = ((avg_future_price - current_price) / current_price) * 100
+        print(f"Estimated Change: {change_pct:+.2f}%")
+        
+        print(f"\n⚠️ NOTE: Future estimates are based on simple linear regression")
+        print(f"   and should not be used for actual trading decisions!")
+        
+    else:
+        print("Required columns not found. Available columns are:")
+        print(nflx_data.columns.tolist())
+        print("\nPlease check if your CSV has 'Date' and 'Close/Last' columns")
+        
+else:
+    print("Failed to load data. Please check:")
+    print("1. File path is correct")
+    print("2. File exists")
+    print("3. File is not corrupted")
