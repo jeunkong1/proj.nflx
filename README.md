@@ -1,2 +1,4 @@
 # proj.nflx
-Analyzing NFLX historical stock price
+Analyze NFLX historical stock price
+Moving Average(MA) and Future Trend
+
